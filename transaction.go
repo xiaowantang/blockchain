@@ -56,7 +56,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	// 输出的值,目前锁定脚本from to都只是一个字符串
 	outputs = append(outputs, TXOutput{amount, to})
 	// 如果收集到的之前区块的输出已经大于本区块需要传输的数量
-	// 就在本区块中添加一个TXOutput将多出来的传输给frmo
+	// 就在本区块中添加一个TXOutput将多出来的传输给from
 	// 一般情况下,这一步是要发生的
 	if acc >= amount {
 		outputs = append(outputs, TXOutput{acc - amount, from})
@@ -69,6 +69,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	return &tx
 }
 
+// 被NewUTXOtransaction函数调用，传入的是address的值是from
 func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
 	unspentTXs := bc.FindUnspentTransactions(address)
@@ -125,7 +126,8 @@ func (tx *Transaction) SetID() {
 	tx.ID = hash[:]
 }
 
-// 判断是否有权使用,在下面的函数中被调用
+// 判断是否有权使用,在下面的函数中被调用，传入的是from字符串，
+// 相等则表明这个TXInput是将coin这个值传给了from这个地址
 func (in *TXInput) CanUnlockOutputWith(unlockingData string) bool {
 	return in.ScripsSig == unlockingData
 }
@@ -134,7 +136,7 @@ func (out *TXOutput) CanBeUnlockedWith(unlockingData string) bool {
 	return out.ScriptPubKey == unlockingData
 }
 
-// 收集
+// 收集包含未花费的输出的Transaction
 func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 	var unspentTXs []Transaction
 	spentTXOs := make(map[string][]int)
@@ -147,6 +149,7 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 			txID := hex.EncodeToString(tx.ID)
 		Outputs:
 			for outIdx, out := range tx.Vout {
+				// 第一次执行到这里，这个if肯定是会跳过的
 				if spentTXOs[txID] != nil {
 					for _, spentOut := range spentTXOs[txID] {
 						if spentOut == outIdx {
@@ -158,16 +161,22 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 					unspentTXs = append(unspentTXs, *tx)
 				}
 			}
-			// 不用coinbase交易
+			// 不是coinbase交易，
 			if tx.IsCoinbase() == false {
+				// 遍历当前Transaction的全部TXInput
 				for _, in := range tx.Vin {
+					// address是from的实参 ，这个if是为了判断这个in（类型为TXInput）
+					// 是发送给address这个地址的，address这个地址是可以使用其中的coin的
 					if in.CanUnlockOutputWith(address) {
+						// 转换为16进制字符串
 						inTxID := hex.EncodeToString(in.Txid)
+						// 将可用的TXInput的Txid，及其对应的Vout对应起来
 						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
 					}
 				}
 			}
 		}
+		// 已经遍历到了创世区块，即所有区块都被检查过了，可以结束了
 		if len(block.PrevBlockHash) == 0 {
 			break
 		}
