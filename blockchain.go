@@ -39,6 +39,8 @@ func CreateBlockchain(address string) *Blockchain {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
+		// 第二个参数是一个字符串，此处是为了创建创世区块，里面是随意设置的信息
+		// 第一个参数是挖出这个区块的地址，奖励将发送给这个区块
 		cbtx := NewCoinbaseTX(address, GenesisCoinbaseData)
 		genesis := NewGenesisBlock(cbtx)
 
