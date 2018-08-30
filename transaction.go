@@ -40,7 +40,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	if acc < amount {
 		log.Panic("ERROR: Not enouth funds")
 	}
-	// slice的遍历顺序不确定，对应的是key/value
+	// map的遍历顺序不确定，对应的是txid是引用的Transaction的ID，outs是其中TXOutput的编号
 	for txid, outs := range validOutputs {
 		// hex.DecodeString将使用字符串表示的hash转化为十六进制的[]byte，
 		txID, err := hex.DecodeString(txid)
@@ -67,7 +67,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	}
 	// 根据这些inputs, outputs生成新的Transaction
 	tx := Transaction{nil, inputs, outputs}
-	//
+	// 计算并更新这个新区块的hash
 	tx.SetID()
 
 	return &tx
@@ -162,7 +162,7 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 		for _, tx := range block.Transactions {
 			txID := hex.EncodeToString(tx.ID)
 		Outputs:
-			// 遍历当前Transaction的每个TXOutput
+			// 遍历当前Transaction的每个TXOutput，其实也就是一个或两个
 			for outIdx, out := range tx.Vout {
 				// 第一次执行到这里，这个if肯定是会跳过的
 				if spentTXOs[txID] != nil {
@@ -174,6 +174,7 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 				}
 				// 若这个Transaction中有发送到address的TXOutput，
 				// 就将这个Transaction地址保存到切片，
+				// 把发送到from（address）的所有Transaction的地址保存起来
 				if out.CanBeUnlockedWith(address) {
 					// tx在此处是一个局部变量，但编译器会自动做逃逸分析
 					// 简单来说，这样做是没错的，变量的作用域跑出了程序块的范围
